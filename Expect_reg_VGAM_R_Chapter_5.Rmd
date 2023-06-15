@@ -1,0 +1,95 @@
+---
+title: "Chapter 5: Expectile Regression R plots"
+author: "Joseph Ho"
+date: "2023-06-06"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Expectiles
+
+```{r}
+library(expectreg)
+norm_sample <- rnorm(99)
+e_norm <- expectile (norm_sample, probs = seq (0, 1, 0.1))
+# Expectile-expectile plot
+eenorm(e_norm)
+```
+
+We now implement expectile regression on the El Nino data.
+
+Source of data: El Nino. UCI Machine Learning Repository. 1999. \url{https://doi.org/10.24432/C5WG62}
+
+We use the observations in 1997 (where El-Nino occured) that are cleaned (and omitted observations with missing data).
+
+```{r El-nino data, echo=FALSE}
+library(readr)
+elnino <- 
+  read_csv("./elnino_clean_final_1997.csv") # import cleaned data
+#head(elnino) # 14776 observations
+
+# define variables
+latitude <- elnino$Latitude
+longitude <- elnino$Longitude
+zonalwinds <- elnino$Zonal_Winds
+meridionalwinds <- elnino$Meridional_Winds
+humidity <- elnino$Humidity
+airtemp <- elnino$Air_Temp
+seasurfacetemp <- elnino$Sea_Surface_Temp
+```
+
+
+```{r El-nino data expectreg, echo=FALSE}
+library(VGAM)
+library(viridis)
+# function that converts percentiles to `w`
+find.w <- function(w, percentile = 50) {
+  fit <- vglm(seasurfacetemp ~ airtemp, amlnormal(w = w), data = elnino)
+  fit@extra$percentile - percentile
+}
+n <- 10
+w.aml <- numeric(length(n-1)) # stores appropriate "w"-values
+plot(airtemp, seasurfacetemp, main="Expectile functions of
+     El Nino data 1997", cex=0.5)
+for (i in 1:length(expectiles)){
+  w.aml[i] <- uniroot(f = find.w, interval = c(1e-4, 1e4),
+                      percentile = i/n*100)$root
+}
+# expectile regression
+elnino_fit_vgam <- vglm(seasurfacetemp ~ airtemp, amlnormal(w = w.aml), data = elnino)
+matlines(airtemp, fitted(elnino_fit_vgam), col = viridis(n-1), lty = 1) # expectile regression functions
+```
+
+```{r, El Nino expectile regression using VGAM}
+library(VGAM)
+library(viridis)
+library(quantreg)
+# function that converts percentiles to `w`
+find.w <- function(w, percentile = 50) {
+  fit <- vglm(seasurfacetemp ~ airtemp, amlnormal(w = w), data = elnino)
+  fit@extra$percentile - percentile
+}
+n <- 10
+w.aml <- numeric(length(n-1)) # stores appropriate "w"-values
+plot(airtemp, seasurfacetemp, main="Quantile and expectile functions of
+     El Nino data 1997", cex=0.5)
+for (i in 1:length(expectiles)){
+  w.aml[i] <- uniroot(f = find.w, interval = c(1e-4, 1e4),
+                      percentile = i/n*100)$root
+}
+# expectile regression
+elnino_fit_vgam <- vglm(seasurfacetemp ~ airtemp, amlnormal(w = w.aml), data = elnino)
+matlines(airtemp, fitted(elnino_fit_vgam), col = "yellow", lty = 1) # expectile regression line (yellow lines)
+
+# compare with quantile regression lines
+for (i in 1:(n-1)){
+  elnino_fit_quant <- rq(seasurfacetemp ~ airtemp, tau = i/n)
+  abline(elnino_fit_quant, col="purple") # quantile regression line (purple lines)
+}
+# legend/key
+legend("bottomright", legend=c("Quantiles", "Expectiles"),
+       col=c("purple", "yellow"), lty=1, cex=0.7)
+```

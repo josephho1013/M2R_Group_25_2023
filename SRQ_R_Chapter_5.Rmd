@@ -1,0 +1,95 @@
+---
+title: "Chapter 5: SRQ R plots"
+author: "Joseph Ho"
+date: "2023-06-06"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Smooth check functions and Systematic Regression Quantiles (SRQ)
+Reference: Saleh R.A., Saleh A.K.Md.E. Solution to the Non-Monotonicity and Crossing Problems in Quantile Regression. arXiv [Preprint] 2021. Version 2. [URL](https://arxiv.org/abs/2111.04805)
+
+Original check function for quantile regression is
+$$\rho_\tau(u) = u(\tau - \mathbb{I}_{\{u < 0\}}), \qquad u \in \mathbb{R}, \tau \in [0,1]$$
+It is piecewise linear but not differentiable at $u=0$. The (piecewise) derivative of $\rho_\tau$ is
+$$\rho'_\tau(u) = \begin{cases} \tau - 1, & u < 0\\
+\tau, & u \geq 0\end{cases}$$
+The alternative proposed in the article (revised by the author) is to approximate this derivative by
+$$f(x|\tau, c) := \frac{1}{2}\tanh(cx) + (\tau - \frac{1}{2}), \qquad \tau \in [0,1], c \geq 1$$
+where $c \geq 1$ is a parameter to be specified (choose a large $c$ since $\tanh(cx) \to \text{sgn}(x)$ pointwise as $c \to \infty$). Then the continuous check function is
+$$F(x|\tau,c) = \begin{cases}
+\frac{1}{2c} \log(\cosh(cx)) + (\tau-\frac{1}{2})x + \frac{1}{2c} \log 2, & \tau = 0 \text{ or } \tau = 1\\
+\frac{1}{2c} \log(\cosh(cx)) + (\tau-\frac{1}{2})x + \frac{1}{2c} \log 2 + \frac{1}{2c}[\log(\sqrt{\tau(1-\tau)})-(\tau-\frac{1}{2})\log(\frac{1-\tau}{\tau})], & 0 < \tau < 1
+\end{cases}$$
+
+Now we try to replicate the plots in this paper in Section IV.C:
+```{r anscombe data 1 quantreg median}
+library(quantreg)
+plot(anscombe$x1, anscombe$y1)
+fit1 <- rq(anscombe$y1 ~ anscombe$x1, tau = 0.5) # median regression
+summary(fit1)
+abline(fit1, col="blue") # median regression line (blue solid line)
+abline(lm(anscombe$y1 ~ anscombe$x1), lty = 2, col = "red") # linear regression line (red dotted line)
+```
+
+
+
+We now implement the method of SRQ on the El Nino data.
+
+Source of data: El Nino. UCI Machine Learning Repository. 1999. \url{https://doi.org/10.24432/C5WG62}
+
+We use the observations in 1997 (where El-Nino occured) that are cleaned (and omitted observations with missing data).
+
+```{r El-nino data, echo=FALSE}
+library(readr)
+elnino <- 
+  read_csv("./elnino_clean_final_1997.csv") # import cleaned data
+#head(elnino) # 14776 observations
+
+# define variables
+latitude <- elnino$Latitude
+longitude <- elnino$Longitude
+zonalwinds <- elnino$Zonal_Winds
+meridionalwinds <- elnino$Meridional_Winds
+humidity <- elnino$Humidity
+airtemp <- elnino$Air_Temp
+seasurfacetemp <- elnino$Sea_Surface_Temp
+```
+
+
+```{r El-nino data quantreg quantile functions, echo=FALSE,results='hide',fig.keep='all'}
+library(quantreg)
+library(viridis)
+plot(airtemp, seasurfacetemp, main="Quantile functions of
+    El Nino data 1997", cex=0.5)
+n <- 10 # number of quantile functions (lines)
+for (i in 1:(n-1)){
+  elnino_fit_quant <- rq(seasurfacetemp ~ airtemp, tau = i/n)
+  abline(elnino_fit_quant, col=viridis(n-1)[i]) # quantile regression line (solid lines)
+}
+#abline(lm(seasurfacetemp ~ airtemp), lty = 2, col = "red") # linear regression line (red dotted line)
+```
+From the plot, we see quantile crossing between the upper quantile functions at airtemp=29.8.
+
+```{r elninodata SRQ single covariate}
+#library(quantreg)
+library(viridis)
+y <- c(seasurfacetemp)
+x <- matrix(airtemp)
+X <- cbind(rep(1,nrow(x)),x)
+
+# plots
+plot(x, y, xlab = "airtemp", ylab = "seasurfacetemp", main="SRQ Quantile functions of
+    El Nino data 1997", cex=0.5)
+
+# quantile regression using SRQ on discrete set of taus
+n <- 10 # number of quantile functions
+for (i in 1:(n-1)){
+  betas_SRQ <- srq(X,y,tau = i/n)
+  abline(a=betas_SRQ[1], b=betas_SRQ[2], col = viridis(n-1)[i]) # SRQ quantile regression line
+}
+```
+The SRQ quantile functions still cross at airtemp=29.8, which implies SRQ cannot solve the quantile crossing problem.
