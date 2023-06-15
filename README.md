@@ -5,4 +5,4 @@ Topic: Quantile Regression - Theory and Applications <br/>
 Supervisor: Professor Alessandra Luati <br/>
 Group 25 members: Joseph Ho, Mikael Sicheng Liu, Hanson Shen, Leven Zhou, You Zhou
 
-This repository contains the raw and cleaned dataset as well as codes in Python and R used in the research project.
+This repository contains the raw and cleaned datasets as well as codes in Python and R used in the research project.
